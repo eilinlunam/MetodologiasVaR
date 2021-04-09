@@ -238,9 +238,10 @@ class Metodologias:
         test_kupiec = -2*np.log(list(num/den))
         ValorP = chi2.pdf(test_kupiec,1)
         zona = np.where(ValorP<=nivel, "Rechazo H0", "No Rechazo H0")
-        d = pd.DataFrame({'BackTesting':BackTesting, 'x':x , 'p':p, 'p estimado':p_est , 'm':m ,
-                          'nivel de significancia':nivel,'test de kupiec':test_kupiec, 'Valor P':ValorP,
-                          "Zona de rechazo":zona, "Valor de eficiencia": 1-p_est})
+        d = pd.DataFrame({'p':p, 'x':x , 'm':m, 'BackTesting':BackTesting,
+                          'p estimado':p_est , 'nivel de significancia':nivel,
+                          'test de kupiec':test_kupiec, 
+                          'Valor P':ValorP,
+                          "Zona de rechazo":zona, 
+                          "Valor de eficiencia": 1-p_est})
         return d.T
-
-
