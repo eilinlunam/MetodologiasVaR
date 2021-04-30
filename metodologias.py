@@ -10,7 +10,7 @@ from pandas_datareader import data as pdr
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import investpy
+#import investpy
 
 #Parámetros de ingreso:
     # stocks --> Lista de acciones ["stock1","stock2","stock3"]
@@ -139,17 +139,35 @@ class Metodologias:
             GL += [np.round((4*k+6)/k)]
         return np.array(GL, dtype=int)
 
-    # VaR Suma Simple (s=Activo)   
-    def VaRSumaSimple(self,s):
+    # VaR Delta Normal (s=Activo)   
+    def VaRDeltaNormal(self,s):
         df = pd.DataFrame()
         df["Fechas"] = self.fechas
-        df["Rent"] = self.rent[s][self.b:self.N].values
-        df["desvest"]= self.get_desvest(s)
-        df["media"]  = self.get_mean(s)
+        desv = self.get_desvest(s)
         for a in self.alphas:
             Zalpha = -norm.ppf(1-a)
-            df['alpha='+str(a)]=df["desvest"]*Zalpha
+            df['alpha='+str(a)]=desv*Zalpha
         return df
+    
+    # VaR Simulacion Univariada (s=Activo)   
+    def VaRSimulacionHistoricaUnivariada(self,s):
+        df = pd.DataFrame()
+        df["Fechas"] = self.fechas
+        for a in self.alphas:
+            X=[np.percentile(self.rent[s][self.a+j:self.b+j],a*100) for j in range(self.periodos)]
+            df['alpha='+str(a)]=X
+        return df    
+    
+    # VaR Delta T (s=Activo)
+    def VaRDeltaT(self,s):
+        df = pd.DataFrame()
+        df["Fechas"] = self.fechas
+        v = self.get_grados_de_libertad(self.rent[s])
+        desv = self.get_desvest_3(s)
+        for a in self.alphas:
+            df['alpha='+str(a)]=desv*-t.ppf(1-a, v)
+        return df
+        
 
     # VaR Suma Simple (Portafolio)
     def VaRSumaSimplePortafolio(self):
@@ -208,12 +226,27 @@ class Metodologias:
     def VaRBaricentroEWMAT(self):
         df = pd.DataFrame()
         df["Fechas"] = self.fechas
-        df["Rent"] = self.rend['Rent'][self.b:self.N].values
-        df['GL']=self.get_grados_de_libertad(self.rend['Rent'])
-        X = sum([self.get_desvest_4(self.stocks[i])*self.W[i] for i in range(self.n)])
-        df["desv"]=X
+        GL=self.get_grados_de_libertad(self.rend['Rent'])
+        desv = sum([self.get_desvest_4(self.stocks[i])*self.W[i] for i in range(self.n)])
         for a in self.alphas:
-            df['alpha='+str(a)]=df["desv"]*-t.ppf(1-a, df['GL'])
+            df['alpha='+str(a)]=desv*-t.ppf(1-a, GL)
+        return df
+    
+    # VaR Matrix CovVar (Portafolio)
+    def VaRMatrizVarCovar(self):
+        W = np.matrix(self.W)
+        df = pd.DataFrame()     
+        desv = []
+        df["Fechas"] = self.fechas
+        for j in range(self.periodos):
+            rent_movil = np.transpose(self.rent[:][self.a+j:self.b+j].values)
+            cov = np.matrix(np.cov(rent_movil))
+            desv_p = W*cov*W.T
+            desv += [np.sqrt(desv_p[0,0])]
+        desv = np.array(desv)
+        for a in self.alphas:
+            Zalpha = -norm.ppf(1-a)
+            df['alpha='+str(a)]=desv*Zalpha
         return df
     
     # M, dataframe arrojado por el metodo usado.
@@ -245,3 +278,18 @@ class Metodologias:
                           "Zona de rechazo":zona, 
                           "Valor de eficiencia": 1-p_est})
         return d.T
+    
+    
+
+activos = ["BA", "AMZN", "AAPL", "AAL", "GS"]
+dinero = [100, 100, 100, 100, 100]
+desde = "2018-02-14"
+hasta = "2020-03-24"
+alphas = [0.1,  0.05,  0.025,  0.01]
+
+M = Metodologias(stocks=activos, 
+                 dinero = dinero,
+                 desde = desde, 
+                 hasta = hasta,
+                 alphas = alphas)
+M.VaRMatrizVarCovar()
