@@ -123,8 +123,8 @@ class methodology(object):
         df=df.reindex([df.index[-1]] + list(df.index[:-1])).reset_index(drop=True)
 
         # Convert the data to percentages
-        for i in df.columns[1:]: 
-            df[i]=(df[i]*100).round(4).astype(str)+"%" 
+        #for i in df.columns[1:]: 
+        #    df[i]=(df[i]*100).round(4).astype(str)+"%" 
         
         return df
         
@@ -288,7 +288,7 @@ class methodology(object):
     def exceptions(self, M):
         df = pd.DataFrame()
         df["Fechas"] = np.array(self.dates)[:-1]
-        for a in self.alphas: M['p='+str(a)] = M['p='+str(a)].str.rstrip('%').astype('float')/100.
+        # for a in self.alphas: M['p='+str(a)] = M['p='+str(a)].str.rstrip('%').astype('float')/100.
         RP = self.Rp['Returns'][self.N-self.periods:self.N].values
         for a in self.alphas:
             df['p='+str(a)]=RP<M['p='+str(a)][1:].values
