@@ -6,6 +6,7 @@
 import pandas as pd
 import numpy as np
 from pandas_datareader import data as pdr
+import datetime
 from scipy.stats import norm, kurtosis, t, chi2
 
 class methodology(object):
@@ -67,7 +68,7 @@ class methodology(object):
         # Business days and previous to use moving windows.
         self.days = self.N - self.periods 
         # Dates on which the VaR will be calculated
-        self.dates = list(self.get_dates()) + ["VaR t+1"]
+        self.dates = self.get_dates()
         # Number where init first moving window.
         self.a = self.N-self.periods-self.days 
         # Number where end first moving window.
@@ -112,22 +113,22 @@ class methodology(object):
         df["Máximo"]=self.Rs.max().values
         df["Cantidad"]=self.Rs.count().values
         df.sort_values(by="Participacion", ascending=False, inplace=True)
-        for column in ["Participacion","Rendimiento","Media","Desv. estándar",
-                       "Varianza", "Mínimo", "Máximo"]:
-            df[column] = (df[column]*100).round(3).astype(str) + '%'
+        #for column in ["Participacion","Rendimiento","Media","Desv. estándar",
+        #               "Varianza", "Mínimo", "Máximo"]:
+        #    df[column] = (df[column]*100).round(3).astype(str) + '%'
         return df.transpose()
+          
+    # To split dataframes
+    def split_dataframe(self, df):   
+     
+        # Var t+1
+        df1 = df.iloc[-1:, :]
+        
+        # VaR
+        df2 = df.iloc[:-1, :]
     
-    # To return the Dataframes.
-    def apply_style(self, df):
-        # Place the VaR t+1 in the first position
-        df=df.reindex([df.index[-1]] + list(df.index[:-1])).reset_index(drop=True)
-
-        # Convert the data to percentages
-        #for i in df.columns[1:]: 
-        #    df[i]=(df[i]*100).round(4).astype(str)+"%" 
-        
-        return df
-        
+        return df1, df2
+    
     # Computing return of the portfolio
     def get_performance(self):
         R = (self.Rs*self.W).sum(axis=1)
@@ -136,7 +137,11 @@ class methodology(object):
     # Extracting dates in the chosen period (277 days (by default))
     def get_dates(self):
         Dates = self.data[self.N-self.periods+1:self.N+1].index
+        # Next day to last (Does not include weekends)
+        d = Dates[-1]
+        t1 = d + datetime.timedelta(days=7-d.weekday() if d.weekday()>3 else 1) 
         Dates = [i.strftime("%d/%m/%Y") for i in Dates]
+        Dates += ["VaR t+1 ("+t1.strftime("%d/%m/%Y")+")"]
         return Dates
     
     # Calculating standard deviation by moving windows
@@ -199,7 +204,7 @@ class methodology(object):
             Zalpha = -norm.ppf(1-a)
             df['p='+str(a)]=sd*Zalpha
         if p: return df
-        return self.apply_style(df)
+        return df
 
     # VaR Simulacion Univariada (s=Activo)   
     def VaRSimulacionHistoricaUnivariada(self,s):
@@ -207,7 +212,7 @@ class methodology(object):
         df["Fechas"] = self.dates
         for a in self.alphas:
             df['p='+str(a)]=[np.percentile(self.Rs[s][self.a+j:self.b+j],a*100) for j in range(self.periods+1)]
-        return self.apply_style(df)
+        return df
 
     # VaR Delta T (s=Activo)
     def VaRDeltaT(self,s):
@@ -218,7 +223,7 @@ class methodology(object):
         sd = np.sqrt((v-2)/v)*d
         for a in self.alphas:
             df['p='+str(a)]=sd*-t.ppf(1-a, v)
-        return self.apply_style(df)
+        return df
         
     # VaR Suma Simple (Portfolio)
     def VaRSumaSimple(self):
@@ -226,7 +231,7 @@ class methodology(object):
         df["Fechas"] = self.dates
         for a in self.alphas:
             df['p='+str(a)]=sum([self.VaRDeltaNormal(i,p=True)['p='+str(a)] for i in self.stocks])
-        return self.apply_style(df)
+        return df
 
     # VaR Baricentro EWMA Normal (Portafolio)
     def VaRBaricentroEWMANormal(self):
@@ -235,7 +240,7 @@ class methodology(object):
         Desv_Bar_Prom_EWMA = sum([self.get_sd_2(self.stocks[i])*self.W[i] for i in range(self.n)])
         for a in self.alphas:
             df['p='+str(a)]=Desv_Bar_Prom_EWMA*-norm.ppf(1-a)
-        return self.apply_style(df)
+        return df
 
     # VaR Baricentro Promedio Normal (Portfolio)
     def VaRBaricentroPromedioNormal(self):
@@ -244,7 +249,7 @@ class methodology(object):
         Desv_Bar_Prom = sum([self.get_sd_1(self.stocks[i])*self.W[i] for i in range(self.n)])
         for a in self.alphas:
             df['p='+str(a)]=Desv_Bar_Prom*-norm.ppf(1-a)
-        return self.apply_style(df)
+        return df
 
     # VaR Simulacion Historica (Portfolio)
     def VaRSimulacionHistorica(self):
@@ -252,7 +257,7 @@ class methodology(object):
         df["Fechas"] = self.dates
         for a in self.alphas:
             df['p='+str(a)]=[np.percentile(self.Rp[self.a+j:self.b+j],a*100) for j in range(self.periods+1)]
-        return self.apply_style(df)   
+        return df
 
     # VaR Baricentro Promedio T (Portafolio)
     def VaRBaricentroPromedioT(self):
@@ -262,7 +267,7 @@ class methodology(object):
         desv = sum([self.get_sd_3(self.stocks[i])*self.W[i] for i in range(self.n)])
         for a in self.alphas:
             df['p='+str(a)]=desv*-t.ppf(1-a, GL)
-        return self.apply_style(df)
+        return df
 
     # VaR Baricentro EWMA T (Portfolio)
     def VaRBaricentroEWMAT(self):
@@ -272,7 +277,7 @@ class methodology(object):
         desv = sum([self.get_sd_4(self.stocks[i])*self.W[i] for i in range(self.n)])
         for a in self.alphas:
             df['p='+str(a)]=desv*-t.ppf(1-a, GL)
-        return self.apply_style(df)
+        return df
 
     # VaR Matrix CovVar (Portfolio)
     def VaRMatrizVarCovar(self):
@@ -282,7 +287,7 @@ class methodology(object):
         for a in self.alphas:
             Zalpha = -norm.ppf(1-a)
             df['p='+str(a)]=desv*Zalpha
-        return self.apply_style(df)
+        return df
     
     # M, dataframe returned by the method used.
     def exceptions(self, M):
